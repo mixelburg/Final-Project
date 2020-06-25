@@ -1,60 +1,25 @@
 import getopt
 import sys
-
 from mySock import client, close
-import time
+from myUtil import login
 
 # payloads
-login_payload = '100#{gli&&er}{"user_name":"<user_name>","password":"<password>","enable_push_notifications":true}##'
-auth_payload = '110#{gli&&er}2066##'
-entity_payload = '310#{gli&&er}<id>##'
 comment_payload = '650#{gli&&er}{"glit_id":<glit_id>,"user_id":<user_id>,"user_screen_name":"<screen_name>","id":-1,' \
                   '"content":"<content>","date":"2020-06-23T06:29:00.751Z"}## '
 
 # params
-GLIT_ID = 0
-USER_ID = 0
-USER_NAME = ""
+GLIT_ID = ""
+USER_ID = ""
 USER_SCREEN_NAME = "default"
+USER_NAME = ""
 PASSWORD = ""
 COMMENT = "default"
-USAGE_INFO = "Usage: comment.py -u <user_name> -p <password> -g <glit_id> -c <comment> -s <screen_name>"
-
-
-def login(sock):
-    """
-    performs login operations
-    :param sock: tcp socket
-    :return: None
-    """
-    global USER_ID
-    global USER_SCREEN_NAME
-    global entity_payload
-    global like_payload
-    global comment_payload
-
-    # list of payloads
-    payloads = [login_payload, auth_payload, entity_payload]
-
-    for payload in payloads:
-        # send data
-        sock.send(payload.encode())
-        data = sock.recv(2048).decode()
-
-        # collect info
-        if "Authentication approved" in data:
-            data = data.split(",")
-
-            # get user id
-            user_id_info = data[4]
-            USER_ID = user_id_info.split(":")[1]
-
-            # generate payloads
-            entity_payload = entity_payload.replace("<id>", USER_ID)
-            comment_payload = comment_payload.replace("<user_id>", USER_ID)
-            comment_payload = comment_payload.replace("<screen_name>", USER_SCREEN_NAME)
-
-    print("[+] Login successful")
+USAGE_INFO = """
+Usage: comment.py -u <user_name> -p <password> 
+    -g <glit_id>  
+    -s <screen_name> 
+    -c <comment_text>
+"""
 
 
 def get_params(opts):
@@ -77,13 +42,26 @@ def get_params(opts):
             COMMENT = arg
         elif opt == '-s':
             USER_SCREEN_NAME = arg
-            comment_payload = comment_payload.replace("<screen_name>", USER_SCREEN_NAME)
+
+
+def format_payloads():
+    global comment_payload
+    comment_payload = comment_payload.replace("<content>", COMMENT)
+    comment_payload = comment_payload.replace("<user_id>", USER_ID)
+    comment_payload = comment_payload.replace("glit_id>", GLIT_ID)
+    comment_payload = comment_payload.replace("<screen_name>", USER_SCREEN_NAME)
+
+
+def action(sock):
+    # post comment
+    print(comment_payload)
+    sock.send(comment_payload.encode())
+    data = sock.recv(2048)
+    print(data.decode())
 
 
 def main(argv):
-    global USER_NAME, PASSWORD, GLIT_ID, USER_SCREEN_NAME
-    global login_payload, comment_payload
-    global COMMENT
+    global USER_NAME, PASSWORD, USER_ID
 
     # try to get main arguments
     try:
@@ -94,22 +72,18 @@ def main(argv):
 
     get_params(opts)
 
-    # generate payloads
-    login_payload = login_payload.replace("<user_name>", USER_NAME)
-    login_payload = login_payload.replace("<password>", PASSWORD)
-    comment_payload = comment_payload.replace("<content>", COMMENT)
-
     # create socket and login
     print("[+] Started")
     sock = client()
-    login(sock)
+    USER_ID = login(sock, USER_NAME, PASSWORD)
 
-    # post comment
-    print(comment_payload)
-    sock.send(comment_payload.encode())
-    data = sock.recv(2048)
-    print(data.decode())
+    # create payloads
+    format_payloads()
 
+    # main action
+    action(sock)
+
+    # close connection
     close(sock)
 
 
